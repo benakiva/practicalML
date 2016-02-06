@@ -9,6 +9,8 @@ output: html_document
 
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
+The project can be found on github: http://benakiva.github.io/practicalML/ and https://github.com/benakiva/practicalML
+
 ## Data Source
 
 The training data for this project are available here:
@@ -34,6 +36,8 @@ library(rpart.plot)
 library(RColorBrewer)
 library(rattle)
 library(randomForest)
+library(gbm)
+library(plyr)
 ```
 
 ```{r}
@@ -88,7 +92,8 @@ dim(training); dim(testing);
 Using Decision Tree, we shouldn't expect the accuracy to be high. In fact, anything around 80% would be acceptable.
 
 ```{r}
-modFitDT <- rpart(classe ~ ., data = training, method="class")
+set.seed(12345)
+modFitDT <- rpart(classe ~ ., data = training, method="class", control = rpart.control(method = "cv", number = 10))
 fancyRpartPlot(modFitDT)
 ```
 
@@ -107,7 +112,22 @@ Using random forest, the out of sample error should be small. The error will be 
 
 ```{r}
 set.seed(12345)
-modFitRF <- randomForest(classe ~ ., data = training, ntree = 1000)
+
+modFitRF <- randomForest(classe ~ ., data = training, method = "rf", importance = T, trControl = trainControl(method = "cv", classProbs=TRUE,savePredictions=TRUE,allowParallel=TRUE, number = 10))
+
+plot(modFitRF)
+```
+
+### Building the Boosting Model
+
+```{r}
+modFitBoost <- train(classe ~ ., method = "gbm", data = training,
+                    verbose = F,
+                    trControl = trainControl(method = "cv", number = 10))
+
+modFitBoost
+
+plot(modFitBoost)
 ```
 
 ### Predicting with the Random Forest Model
@@ -117,20 +137,36 @@ prediction <- predict(modFitRF, testing, type = "class")
 confusionMatrix(prediction, testing$classe)
 ```
 
-## Predicting on the Testing Data (pml-testing.csv)
+The random forest model performed very well in-sample, with about 99.3% Accuracy.
+
+### Predicting with the Boosting Model
+
+```{r}
+prediction <- predict(modFitBoost, testing)
+confusionMatrix(prediction, testing$classe)
+```
+
+## Predicting with the Testing Data (pml-testing.csv)
 
 ### Decision Tree Prediction
 
 ```{r}
-predictionDT <- predict(modFitDT, dt_testing, type = "class")
+predictionDT <- predict(modFitDT, dt_testing)
 predictionDT
 ```
 
 ### Random Forest Prediction
 
 ```{r}
-predictionRF <- predict(modFitRF, dt_testing, type = "class")
+predictionRF <- predict(modFitRF, dt_testing)
 predictionRF
+```
+
+### Boosting Prediction
+
+```{r}
+predictionBoost <- predict(modFitBoost, dt_testing)
+predictionBoost
 ```
 
 ## Submission file
